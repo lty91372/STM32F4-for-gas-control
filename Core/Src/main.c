@@ -23,7 +23,12 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-#include "gas_control.h"
+#include "gas_sensor.h"
+#include <stdio.h> // 用于 printf
+
+
+
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -36,7 +41,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define TX_BUFFER_SIZE 64
+static char tx_buffer[TX_BUFFER_SIZE];
 
+
+#define TIM_MODE 1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -65,7 +74,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	}
 }
 
-
+#if TIM_MODE
 //定时器回调函数
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -77,25 +86,24 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		static uint32_t tasktick = 0;
 		tasktick++;
-		if(tasktick % 100 == 0 && tasktick > 0)
+		if(tasktick % 5 == 0 && tasktick > 0)
 		{
 			Key_State_Detect();
 			Keyboard_State_Detect();
 		}
-		if(tasktick % 2000 == 1)
+		if(tasktick % 20 == 1)
 		{
-//			UART_STATE_MACHINE();
-//			Gas_Debug_Transmit();
+			UART_STATE_MACHINE();
 		}
-		if(tasktick % 2000 == 0)
+		if(tasktick % 200 == 2)
 		{
-//			Gas_Channel_Control_Update();
-//			Gas_Debug_Transmit();
+			Gas_Channel_Control_Update();
 		}
 		if(tasktick >= 2000)
 			tasktick = 0;
 	}
 }
+#endif
 /* USER CODE END 0 */
 
 /**
@@ -106,7 +114,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+	GasSensor_Data_t my_o2_data; // 创建传感器数据结构体
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -134,19 +142,16 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM14_Init();
   MX_TIM13_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_TIM_Base_Start_IT(&htim14);
   HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);//开启PWM
-  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1,0);//设置比较值为0
+__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1,0);//设置比较值为0
   HAL_ADC_Start_DMA(&hadc1,(uint32_t*)Get_adcBuf_Address(),3);
-  Motor_Init();
   Gas_Channel_Control_Init();
-
-  __HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,800);
-//  Gas_Channel_Control_Init();
-  Receive_Init();
+//  Receive_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -156,14 +161,20 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//	  KeyBoard_Transmit();
-//
-//	  Channel_Selection_SM();
+	  /*KeyBoard_Transmit();
+
+	  Channel_Selection_SM();
 	  Keyboard_Input_Detect_SM();
-	  Debug_Buffer_Transmit();
-	  UART_Transmit_Control();
-//
-//	  LED_STATE_MACHINE();
+
+	  LED_STATE_MACHINE();*/
+
+	  if (GasSensor_ReadData(&huart1, &my_o2_data) == HAL_OK) {
+
+	          sprintf(tx_buffer,"O2: %.1f %%VOL\r\n", my_o2_data.concentration);
+	          HAL_UART_Transmit_DMA(&huart4,(uint8_t*)tx_buffer,strlen(tx_buffer));
+	      }
+
+	      HAL_Delay(2000);
 
   }
   /* USER CODE END 3 */
@@ -216,8 +227,11 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-
+int __io_putchar(int ch) {
+    // 假设 huart1 是连接你电脑串口助手的串口
+    HAL_UART_Transmit(&huart4, (uint8_t *)&ch, 1, 0xFFFF);
+    return ch;
+}
 /* USER CODE END 4 */
 
 /**
@@ -250,4 +264,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
