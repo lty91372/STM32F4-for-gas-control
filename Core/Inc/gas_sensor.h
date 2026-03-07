@@ -8,11 +8,16 @@
 #ifndef __GAS_SENSOR_H
 #define __GAS_SENSOR_H
 
+
+
 #include "main.h"
+#include "usart.h"
 
 // 传感器 Modbus 默认地址
 #define GAS_SENSOR_ADDR 0x01
-
+//
+#define TX_BUFFER_SIZE 128
+static char tx_buffer[TX_BUFFER_SIZE];
 // 气体类型定义 (根据规格书附录)
 #define GAS_TYPE_O2     67   // 氧气 [cite: 158]
 
@@ -28,5 +33,5 @@ typedef struct {
 
 // 函数声明
 HAL_StatusTypeDef GasSensor_ReadData(UART_HandleTypeDef *huart, GasSensor_Data_t *data);
-
+HAL_StatusTypeDef GasSensor_GetConcentration(char *out_buffer, uint16_t buffer_size);
 #endif
