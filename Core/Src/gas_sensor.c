@@ -16,6 +16,7 @@
  */
 
 
+
 // gas_sensor.c 中的临时测试版本
 HAL_StatusTypeDef GasSensor_ReadData(UART_HandleTypeDef *huart, GasSensor_Data_t *data) {
     // 模拟传感器返回 20.9% 浓度的逻辑
@@ -24,6 +25,36 @@ HAL_StatusTypeDef GasSensor_ReadData(UART_HandleTypeDef *huart, GasSensor_Data_t
     data->temperature = 25.5f;
 
     return HAL_OK; // 强制返回成功
+}
+
+GasSensor_Data_t sensor_data[3];
+
+HAL_StatusTypeDef GasSensor_GetConcentration(char *out_buffer, uint16_t buffer_size) {
+    char s[3][10]; // 存储三路临时字符串
+    HAL_StatusTypeDef res[3];
+
+    // 1. 依次读取三路数据
+    res[0] = GasSensor_ReadData(&huart1, &sensor_data[0]);
+    res[1] = GasSensor_ReadData(&huart2, &sensor_data[1]);
+    res[2] = GasSensor_ReadData(&huart3, &sensor_data[2]);
+
+    // 2. 转换数据：成功显示数字，失败显示 Err
+    for (int i = 0; i < 3; i++) {
+        if (res[i] == HAL_OK) {
+            snprintf(s[i], sizeof(s[i]), "%.1f", sensor_data[i].concentration);
+        } else {
+            strncpy(s[i], "Err", sizeof(s[i]));
+        }
+    }
+
+    // 3. 将结果填入传入的 tx_buffer
+    snprintf(out_buffer, buffer_size, "O2_1:%s, O2_2:%s, O2_3:%s %%VOL\r\n", s[0], s[1], s[2]);
+
+    // 只要有一路成功就返回 OK，也可以根据需求改为全部成功才返回 OK
+    if (res[0] == HAL_OK || res[1] == HAL_OK || res[2] == HAL_OK) {
+        return HAL_OK;
+    }
+    return HAL_ERROR;
 }
 
 /*
