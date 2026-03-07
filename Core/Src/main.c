@@ -24,14 +24,11 @@
 #include "usart.h"
 #include "gpio.h"
 #include "gas_sensor.h"
-#include <stdio.h> // 用于 printf
-
-
-
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,11 +38,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TX_BUFFER_SIZE 64
-static char tx_buffer[TX_BUFFER_SIZE];
 
 
-#define TIM_MODE 1
+#define TIM_MODE 0
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -112,26 +107,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
-	GasSensor_Data_t my_o2_data; // 创建传感器数据结构体
+  GasSensor_Data_t my_o2_data[3]; // 定义三路传感器数据结构体数组
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
@@ -143,15 +125,14 @@ int main(void)
   MX_TIM14_Init();
   MX_TIM13_Init();
   MX_USART1_UART_Init();
-  /* USER CODE BEGIN 2 */
+  MX_USART2_UART_Init();
+  MX_USART3_UART_Init();
 
+  /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_TIM_Base_Start_IT(&htim14);
-  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);//开启PWM
-__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1,0);//设置比较值为0
-  HAL_ADC_Start_DMA(&hadc1,(uint32_t*)Get_adcBuf_Address(),3);
-  Gas_Channel_Control_Init();
-//  Receive_Init();
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -161,21 +142,15 @@ __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1,0);//设置比较值为0
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  /*KeyBoard_Transmit();
-
-	  Channel_Selection_SM();
-	  Keyboard_Input_Detect_SM();
-
-	  LED_STATE_MACHINE();*/
-
-	  if (GasSensor_ReadData(&huart1, &my_o2_data) == HAL_OK) {
-
-	          sprintf(tx_buffer,"O2: %.1f %%VOL\r\n", my_o2_data.concentration);
-	          HAL_UART_Transmit_DMA(&huart4,(uint8_t*)tx_buffer,strlen(tx_buffer));
+	  if (GasSensor_GetConcentration(tx_buffer, sizeof(tx_buffer)) == HAL_OK)
+	      {
+	          // 只有读取到数据（哪怕只有一路）才通过 DMA 发送
+	          if (huart4.gState == HAL_UART_STATE_READY)
+	          {
+	              HAL_UART_Transmit_DMA(&huart4, (uint8_t*)tx_buffer, strlen(tx_buffer));
+	          }
 	      }
-
-	      HAL_Delay(2000);
-
+    HAL_Delay(2000); // 采样周期 2 秒
   }
   /* USER CODE END 3 */
 }
@@ -227,11 +202,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-int __io_putchar(int ch) {
-    // 假设 huart1 是连接你电脑串口助手的串口
-    HAL_UART_Transmit(&huart4, (uint8_t *)&ch, 1, 0xFFFF);
-    return ch;
-}
+
 /* USER CODE END 4 */
 
 /**
