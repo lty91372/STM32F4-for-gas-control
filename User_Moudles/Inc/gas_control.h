@@ -1,0 +1,43 @@
+/*
+ * gas_control.h
+ *
+ *  Created on: Nov 9, 2025
+ *      Author: HP
+ */
+
+#ifndef INC_GAS_CONTROL_H_
+#define INC_GAS_CONTROL_H_
+#include <stdlib.h>
+#include "main.h"
+#include "motor.h"
+#include "adc_moudle.h"
+#include "PID_control.h"
+#include "matrix_keyboard.h"
+#include <string.h>
+#include "usart.h"
+#include <stdio.h>
+
+typedef enum{
+	STOPPED,
+	AUTO_RUNNING,
+	MANUAL_CONFIGURATION
+}Gas_Channel_State;
+
+typedef struct{
+	uint8_t channel;
+	PID_controller pid;
+	Motor* System_motors;
+
+	float target_gas_concentration;
+	float current_gas_concentration;
+	Gas_Channel_State current_gas_channel_state;
+
+}Gas_Channel_Controller;
+
+extern Gas_Channel_Controller System_Gas_Channel_Controller[];
+
+void Gas_Channel_Control_Init();
+void Gas_Channel_Control_Update();
+void Channel_Selection_SM();
+void Pid_Calculate_Enable(uint8_t index);
+#endif /* INC_GAS_CONTROL_H_ */
