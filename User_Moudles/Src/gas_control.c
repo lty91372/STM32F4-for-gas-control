@@ -32,9 +32,14 @@ void Gas_Channel_Control_Init()
 		System_Gas_Channel_Controller[i].channel = i;
 		System_Gas_Channel_Controller[i].current_gas_channel_state = STOPPED;
 		System_Gas_Channel_Controller[i].System_motors = &System_motors[i];
+		System_Gas_Channel_Controller[i].GasSensor = &sensor_node[i];
 		System_Gas_Channel_Controller[i].System_motors->current_state = MOTOR_STATE_STOPPED;
-		System_Gas_Channel_Controller[i].current_gas_concentration =(float)Get_adc_After_Filter(i) * 100.0f / 4095.0f; //为了统一数据范围，映射到1-100
-		PID_Init(&System_Gas_Channel_Controller[i].pid,200.0f,10.0f,1.0f,(float)System_Gas_Channel_Controller[i].System_motors->max_speed,0.0f);
+		PID_Init(&System_Gas_Channel_Controller[i].pid,
+				200.0f,
+				10.0f,
+				1.0f,
+				(float)System_Gas_Channel_Controller[i].System_motors->max_speed,
+				0.0f);
 		//初始化完成之后串口回传
 		sprintf(transmit_buff,"Channel %c has been constructed\n",Channel_Dict[i]);
 		HAL_UART_Transmit(&huart4, (uint8_t*)transmit_buff, strlen(transmit_buff), HAL_MAX_DELAY);//此处为了避免冲突，使用非dma传输模式
@@ -66,7 +71,7 @@ void Gas_Channel_Control_Update()
 		if(System_Gas_Channel_Controller[i].current_gas_channel_state == AUTO_RUNNING)
 		{
 			//先从ADC回传的数据中获取浓度值
-			System_Gas_Channel_Controller[i].current_gas_concentration =(float)Get_adc_After_Filter(i) * 100.0f/4095.0f;
+			System_Gas_Channel_Controller[i].current_gas_concentration =System_Gas_Channel_Controller[i].GasSensor->concentration;
 			//计算PID值
 			PID_Calculate(&System_Gas_Channel_Controller[i].pid,
 					System_Gas_Channel_Controller[i].target_gas_concentration,

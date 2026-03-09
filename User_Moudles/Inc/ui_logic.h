@@ -16,13 +16,13 @@ extern uint8_t Button_Backward_flag;
 
 extern uint8_t Input_Buff[256];
 
-typedef struct{
-	RUNNING;
-	IDLE;
-	WRITING;
-};
+//typedef enum{
+//	RUNNING,
+//	IDLE,
+//	WRITING
+//};
 
-void Button_Input_SM(void);
+//void Button_Input_SM(void);
 
 
 

@@ -13,13 +13,14 @@
 #include  <stdio.h>
 #include "usart.h"
 #include "matrix_keyboard.h"
+#define UART_RE 0
 
 
 volatile uint8_t uart_trigger = 0;
 volatile uint32_t uartCounter = 0;
 volatile uint8_t uart_busy = 0;
 uint8_t ReceiveData[50];
-RingBuffer uart_tx_fifo = {0, 0, 0};
+RingBuffer uart_tx_fifo = {{0}, 0, 0};
 
 //测试用例//
 char message[] = "Hello World!";
@@ -67,6 +68,7 @@ void Receive_Init()
 	HAL_UARTEx_ReceiveToIdle_DMA(&huart4, ReceiveData, sizeof(ReceiveData));
 }
 
+#if UART_RE
 //自接收回传测试例程
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart,uint16_t Size)
 {
@@ -74,6 +76,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart,uint16_t Size)
 		HAL_UART_Transmit_DMA(&huart4,ReceiveData,Size);
 		HAL_UARTEx_ReceiveToIdle_DMA(&huart4, ReceiveData, sizeof(ReceiveData));
 }
+#endif
 
 /*
  * @brief uart写缓冲区，要发的数据放在这里
@@ -94,6 +97,15 @@ void Uart_Write_Buff(const uint8_t *data,uint16_t len)
 	}
 }
 
+/**
+ * @brief  将数据写入 UART 发送环形缓冲区 (FIFO)
+ * @param  data: 待发送数据的起始地址
+ * @param  len:  待发送数据的长度
+ * @note   逻辑说明：
+ * 1. 采用循环覆盖检测，如果缓冲区已满（next_head == tail），则丢弃当前字节。
+ * 2. 仅负责向内存缓冲区“生产”数据，不触发实际的硬件发送。
+ * 3. 线程安全提示：若在中断中使用，需注意对 head 指针的操作保护。
+ */
 void Start_Uart_DMA_Transmit_From_FIFO()
 {
 	if(huart4.gState == HAL_UART_STATE_READY && uart_tx_fifo.head != uart_tx_fifo.tail)
@@ -110,16 +122,28 @@ void Start_Uart_DMA_Transmit_From_FIFO()
 	}
 }
 
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+void FIFO_Callback(UART_HandleTypeDef *huart)
 {
-    if (huart->Instance == UART4) {
-        // 更新读指针：加上刚刚发送出去的长度
-        uint16_t sent_len = huart->TxXferSize;
-        uart_tx_fifo.tail = (uart_tx_fifo.tail + sent_len) % RING_BUFFER_SIZE;
+	if (huart->Instance == UART4) {
+	        // 更新读指针：加上刚刚发送出去的长度
+	        uint16_t sent_len = huart->TxXferSize;
+	        uart_tx_fifo.tail = (uart_tx_fifo.tail + sent_len) % TRANSMIT_BUFF;
 
-        // 继续尝试发送剩余部分
-        Start_DMA_Transmit_From_FIFO();
-    }
+	        // 继续尝试发送剩余部分
+	        Start_Uart_DMA_Transmit_From_FIFO();
+	    }
 }
+
+//void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+//{
+//    if (huart->Instance == UART4) {
+//        // 更新读指针：加上刚刚发送出去的长度
+//        uint16_t sent_len = huart->TxXferSize;
+//        uart_tx_fifo.tail = (uart_tx_fifo.tail + sent_len) % TRANSMIT_BUFF;
+//
+//        // 继续尝试发送剩余部分
+//        Start_Uart_DMA_Transmit_From_FIFO();
+//    }
+//}
 
 

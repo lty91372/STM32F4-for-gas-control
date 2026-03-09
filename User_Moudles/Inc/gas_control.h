@@ -13,8 +13,9 @@
 #include "adc_moudle.h"
 #include "PID_control.h"
 #include "matrix_keyboard.h"
-#include <string.h>
 #include "usart.h"
+#include "gas_sensor.h"
+#include <string.h>
 #include <stdio.h>
 
 typedef enum{
@@ -26,7 +27,10 @@ typedef enum{
 typedef struct{
 	uint8_t channel;
 	PID_controller pid;
+
+	//独立初始化部件
 	Motor* System_motors;
+	GasSensor_Data_t* GasSensor;
 
 	float target_gas_concentration;
 	float current_gas_concentration;

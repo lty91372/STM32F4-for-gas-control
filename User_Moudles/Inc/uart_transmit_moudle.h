@@ -21,7 +21,10 @@ void UART_Transmit_Control();
 void KeyBoard_Transmit();
 void Receive_Init();
 
+
 void Uart_Write_Buff(const uint8_t *data,uint16_t len);
+void Start_Uart_DMA_Transmit_From_FIFO(void);
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart);
+void FIFO_Callback(UART_HandleTypeDef *huart);
 
 #endif /* USER_MODULES_INC_UART_TRANSMIT_MOUDLE_H_ */
