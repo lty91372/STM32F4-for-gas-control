@@ -33,14 +33,16 @@ extern Motor System_motors[];	//Motor array for other model use motor model,read
 
 void Motor_Init(void);			//motor initialization
 void Set_Motor_Speed(int id,uint16_t speed);
+void Motor_Hardware_Refresh(uint8_t id);
 Motor_State Get_Motor_State(uint8_t id);
 void Motor_Enable(uint8_t id);	//Motor enable function,use it to adjust motor's state to RUNNIG
 void Motor_Disable(uint8_t id);	//Motor disable function,use it to adjust motor's state to STOP
 
 void ADC_PWM1_Control(uint16_t anodata);
 void Motor1_PWM_Control(uint16_t duty);
-uint16_t GetKerboardOutput();
-void Key_Input_PWM_Control();
+void Motor2_PWM_Control(uint16_t duty);
+//uint16_t GetKerboardOutput();
+//void Key_Input_PWM_Control();
 
 
 

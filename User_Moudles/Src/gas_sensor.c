@@ -3,12 +3,22 @@
 #include <string.h>
 #include <stdio.h>
 #include "uart_transmit_moudle.h"
-#define RECEIVE_INTERVAL 500
+#define RECEIVE_INTERVAL 1000
 #define TIMEOUT_LIMIT 100
+#define SENSOR_DEBUG 1
 
 // 静态缓冲区，必须是全局或静态，防止 DMA 访问失效地址
 static uint8_t query_frame[] = {GAS_SENSOR_ADDR, 0x03, 0x00, 0x00, 0x00, 0x0A, 0xC5, 0xCD};
 GasSensor_Data_t sensor_node[3];
+char sensor_debug_buf[256];
+
+const char* SensorStatus_Names[] = {
+    "IDLE",
+    "WAIT_TX",
+    "WAIT_RX",
+    "COMPLETE",
+    "ERROR"
+};
 
 /**
  * @brief  气体传感器组初始化函数
@@ -25,6 +35,9 @@ void GasSensor_Init(void) {
     {
     	sensor_node[i].status = SENSOR_IDLE;
     	memset(sensor_node[i].rx_temp_buf, 0, sizeof(sensor_node[i].rx_temp_buf));
+
+    	sprintf(sensor_debug_buf,"Sensor,%d,has been constructed\n",i);
+    	Uart_Write_Buff((uint8_t*)sensor_debug_buf,strlen(sensor_debug_buf));
     }
 
 }
@@ -53,8 +66,11 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
             sensor_node[i].status = SENSOR_WAIT_RX;
         }
     }
+    if (huart->Instance == UART4)
+    {
+    	FIFO_Callback(&huart4);
+    }
 
-    FIFO_Callback(&huart4);
 }
 
 /**
@@ -91,8 +107,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
             }
         }
     }
-}
 
+}
 // 调度器：放在 main 循环中
 void GasSensor_Scheduler(void) {
 	static uint32_t last_poll_time = 0;
@@ -111,6 +127,12 @@ void GasSensor_Scheduler(void) {
 			   sensor_node[i].status == SENSOR_COMPLETE ||
 			   sensor_node[i].status == SENSOR_ERROR)
 			{
+#if SENSOR_DEBUG
+				SensorStatus_t current_status = sensor_node[i].status;
+				sprintf(sensor_debug_buf, "Sensor %d State: %s\r\n", i,SensorStatus_Names[current_status]);
+				Uart_Write_Buff((uint8_t*)sensor_debug_buf, strlen(sensor_debug_buf));
+#endif
+
 				GasSensor_TriggerDMA(i);
 			}
 
@@ -132,3 +154,5 @@ void GasSensor_Scheduler(void) {
 	}
 
 }
+
+

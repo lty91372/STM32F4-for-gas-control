@@ -78,25 +78,6 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart,uint16_t Size)
 }
 #endif
 
-/*
- * @brief uart写缓冲区，要发的数据放在这里
- * @param，data：目标缓冲数组
- * @param len：数据长度
- */
-
-void Uart_Write_Buff(const uint8_t *data,uint16_t len)
-{
-	for(uint16_t i = 0;i < len;i++)
-	{
-		uint16_t next_head = (uart_tx_fifo.head + 1) % TRANSMIT_BUFF;
-		if(next_head != uart_tx_fifo.tail)
-		{
-			uart_tx_fifo.buffer[uart_tx_fifo.head] = data[i];
-			uart_tx_fifo.head = next_head;
-		}
-	}
-}
-
 /**
  * @brief  将数据写入 UART 发送环形缓冲区 (FIFO)
  * @param  data: 待发送数据的起始地址
@@ -106,6 +87,25 @@ void Uart_Write_Buff(const uint8_t *data,uint16_t len)
  * 2. 仅负责向内存缓冲区“生产”数据，不触发实际的硬件发送。
  * 3. 线程安全提示：若在中断中使用，需注意对 head 指针的操作保护。
  */
+void Uart_Write_Buff(const uint8_t *data,uint16_t len)
+{
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq(); // 暂时关中断，保护指针操作
+
+	for(uint16_t i = 0;i < len;i++)
+	{
+		uint16_t next_head = (uart_tx_fifo.head + 1) % TRANSMIT_BUFF;
+		if(next_head != uart_tx_fifo.tail)
+		{
+			uart_tx_fifo.buffer[uart_tx_fifo.head] = data[i];
+			uart_tx_fifo.head = next_head;
+		}
+	}
+	__set_PRIMASK(primask); // 恢复中断状态
+	Start_Uart_DMA_Transmit_From_FIFO();
+}
+
+
 void Start_Uart_DMA_Transmit_From_FIFO()
 {
 	if(huart4.gState == HAL_UART_STATE_READY && uart_tx_fifo.head != uart_tx_fifo.tail)
@@ -124,14 +124,12 @@ void Start_Uart_DMA_Transmit_From_FIFO()
 
 void FIFO_Callback(UART_HandleTypeDef *huart)
 {
-	if (huart->Instance == UART4) {
-	        // 更新读指针：加上刚刚发送出去的长度
-	        uint16_t sent_len = huart->TxXferSize;
-	        uart_tx_fifo.tail = (uart_tx_fifo.tail + sent_len) % TRANSMIT_BUFF;
+	// 更新读指针：加上刚刚发送出去的长度
+	uint16_t sent_len = huart->TxXferSize;
+	uart_tx_fifo.tail = (uart_tx_fifo.tail + sent_len) % TRANSMIT_BUFF;
 
-	        // 继续尝试发送剩余部分
-	        Start_Uart_DMA_Transmit_From_FIFO();
-	    }
+	// 继续尝试发送剩余部分
+	Start_Uart_DMA_Transmit_From_FIFO();
 }
 
 //void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)

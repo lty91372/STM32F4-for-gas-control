@@ -8,6 +8,9 @@
 #ifndef INC_PID_CONTROL_H_
 #define INC_PID_CONTROL_H_
 
+#define PID_TIME 200
+#define PID_PARA_DEBUG_MODE 0
+
 #include "main.h"
 
 extern uint8_t pid_info_buff[256];
@@ -29,6 +32,7 @@ void PID_Init(PID_controller* pid,float p,float i,float d,float pwm_output_max,f
 void PID_Calculate(PID_controller* pid,float target,float current_value);
 void PID_Reset(PID_controller* pid);
 float Get_PID_Output(PID_controller* pid);
+void PID_Debug_Transmit(void);
 
 
 

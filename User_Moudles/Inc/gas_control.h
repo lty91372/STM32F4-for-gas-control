@@ -18,6 +18,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#define GAS_CHANNEL_NUM 3
+
 typedef enum{
 	STOPPED,
 	AUTO_RUNNING,
@@ -37,6 +39,17 @@ typedef struct{
 	Gas_Channel_State current_gas_channel_state;
 
 }Gas_Channel_Controller;
+
+//按键状态标志位
+extern uint8_t Button_Channel_Selction_flag[GAS_CHANNEL_NUM];
+extern uint8_t Button_Channel_Running_flag[GAS_CHANNEL_NUM];
+extern uint8_t Button_Channel_Stop_flag[GAS_CHANNEL_NUM];
+extern uint8_t Button_Num_Input[10];
+extern uint8_t Button_Confirm_flag;
+extern uint8_t Button_Backward_flag;
+
+
+//extern uint8_t Input_Buff[256];
 
 extern Gas_Channel_Controller System_Gas_Channel_Controller[];
 

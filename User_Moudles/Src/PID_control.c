@@ -5,9 +5,10 @@
  *      Author: HP
  */
 #include "PID_control.h"
+#include "uart_transmit_moudle.h"
 #include <stdio.h>
-#define PID_TIME 200
-#define DEBUG_MODE 0
+
+
 
 uint8_t pid_info_buff[256];
 
@@ -54,7 +55,8 @@ void PID_Calculate(PID_controller* pid,float target,float current_value)
 	if(output < pid->PWMoutput_min) output = pid->PWMoutput_min;
 	pid->output = output;
 
-#if DEBUG_MODE
+#if PID_PARA_DEBUG_MODE
+	//建议不要放在很快的定时器中
 	sprintf((char *)pid_info_buff, "Err:%.2f | P:%.2f | I:%.2f | D:%.2f | Out:%.2f\r\n",
 	        error, proportional_item, integral_item, derivative_item, output);
 #endif
@@ -77,6 +79,11 @@ void PID_Reset(PID_controller* pid)
 	pid->integral = 0;
 	pid->last_error= 0;
 	pid->output = 0;
+}
+
+void PID_Debug_Transmit()
+{
+	Uart_Write_Buff((uint8_t*)pid_info_buff,sizeof(pid_info_buff));
 }
 
 

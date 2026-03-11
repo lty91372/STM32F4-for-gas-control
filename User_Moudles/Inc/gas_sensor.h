@@ -14,6 +14,8 @@ typedef enum {
     SENSOR_ERROR        // 采集出错/超时
 } SensorStatus_t;
 
+
+
 typedef struct {
     float concentration;
     float temperature;
@@ -38,5 +40,6 @@ extern GasSensor_Data_t sensor_node[3];
 void GasSensor_Init(void);
 void GasSensor_StartNext(void); // 启动下一轮异步采集
 void GasSensor_Scheduler(void); // 放在 while(1) 中调度
+
 
 #endif

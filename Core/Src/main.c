@@ -12,7 +12,7 @@
   * This software is licensed under terms that can be found in the LICENSE file
   * in the root directory of this software component.
   * If no LICENSE file comes with this software, it is provided AS-IS.
-  *aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  *
   ******************************************************************************
   */
 /* USER CODE END Header */
@@ -23,10 +23,15 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-#include "gas_control.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
+#include "gas_control.h"
+#include "motor.h"
+#include "uart_transmit_moudle.h"
+#include <string.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,6 +42,9 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+
+#define TIM_MODE 0
+#define MOTOR_DEBUG 1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -47,7 +55,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+char debug_buf[256];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -59,13 +67,9 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 //ADC回调函数，在一轮转换完成之后触发
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
-	if(hadc == &hadc1)
-	{
-	}
-}
 
 
+#if TIM_MODE
 //定时器回调函数
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -77,25 +81,61 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		static uint32_t tasktick = 0;
 		tasktick++;
-		if(tasktick % 100 == 0 && tasktick > 0)
+		if(tasktick % 5 == 0 && tasktick > 0)
 		{
 			Key_State_Detect();
 			Keyboard_State_Detect();
 		}
-		if(tasktick % 2000 == 1)
+		if(tasktick % 20 == 1)
 		{
-//			UART_STATE_MACHINE();
-//			Gas_Debug_Transmit();
+			UART_STATE_MACHINE();
 		}
-		if(tasktick % 2000 == 0)
+		if(tasktick % 200 == 2)
 		{
-//			Gas_Channel_Control_Update();
-//			Gas_Debug_Transmit();
+			Gas_Channel_Control_Update();
 		}
 		if(tasktick >= 2000)
 			tasktick = 0;
 	}
 }
+#endif
+
+#if MOTOR_DEBUG
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if(htim->Instance == TIM14)
+	{
+
+
+	  static uint32_t motor_debug_inc = 0;
+	  motor_debug_inc++;
+	  if(motor_debug_inc > 1000)
+	  {
+
+
+		  if(Get_Motor_State(0) == MOTOR_STATE_STOPPED)
+		  {
+			  Motor_Enable(0);
+			  Motor1_PWM_Control(2000);
+			  Motor2_PWM_Control(0);
+		  }
+		  else if(Get_Motor_State(0) == MOTOR_STATE_RUNNING)
+		  {
+			  Motor_Disable(0);
+			  Motor1_PWM_Control(0);
+			  Motor2_PWM_Control(2000);
+		  }
+		  motor_debug_inc = 0;
+
+
+		  sprintf(debug_buf,"uart14_Interrupt\n");
+		  Uart_Write_Buff((uint8_t*)debug_buf,strlen(debug_buf));
+	  }
+
+	}
+}
+#endif
+
 /* USER CODE END 0 */
 
 /**
@@ -106,7 +146,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+//  GasSensor_Data_t my_o2_data[3]; // 定义三路传感器数据结构体数组
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -134,19 +174,25 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM14_Init();
   MX_TIM13_Init();
+  MX_USART1_UART_Init();
+  MX_USART2_UART_Init();
+  MX_USART3_UART_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-
-  HAL_TIM_Base_Start_IT(&htim2);
+//  HAL_TIM_Base_Start_IT(&htim2);
   HAL_TIM_Base_Start_IT(&htim14);
-  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);//开启PWM
-  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1,0);//设置比较值为0
-  HAL_ADC_Start_DMA(&hadc1,(uint32_t*)Get_adcBuf_Address(),3);
+  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_1);
+
   Motor_Init();
+  GasSensor_Init();
   Gas_Channel_Control_Init();
 
-  __HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,800);
-//  Gas_Channel_Control_Init();
-  Receive_Init();
+
+  Motor1_PWM_Control(0);
+  sprintf(debug_buf,"Motor 0 Set 0\n");
+  Uart_Write_Buff((uint8_t*)debug_buf,strlen(debug_buf));
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -156,14 +202,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//	  KeyBoard_Transmit();
-//
-//	  Channel_Selection_SM();
-	  Keyboard_Input_Detect_SM();
-	  Debug_Buffer_Transmit();
-	  UART_Transmit_Control();
-//
-//	  LED_STATE_MACHINE();
+	  GasSensor_Scheduler();
+
 
   }
   /* USER CODE END 3 */
@@ -217,7 +257,6 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-
 /* USER CODE END 4 */
 
 /**
@@ -250,4 +289,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
