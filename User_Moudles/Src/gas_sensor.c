@@ -85,29 +85,34 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     for(int i=0; i<3; i++) {
         if(huart == sensor_node[i].huart) {
-            // 此时 rx_temp_buf 已填满，立即解析
             GasSensor_Data_t *d = &sensor_node[i];
-
-            // 解析逻辑 (和你之前的解析代码一致)
-            if (d->rx_temp_buf[0] == GAS_SENSOR_ADDR && d->rx_temp_buf[1] == 0x03) {
-                uint8_t decimal_pos = d->rx_temp_buf[3] & 0x0F;
+            
+            // 增加基础校验：地址、功能码、字节数
+            if (d->rx_temp_buf[0] == GAS_SENSOR_ADDR && d->rx_temp_buf[1] == 0x03 && d->rx_temp_buf[2] == 0x14) {
+                
+                // 1. 解析单位与小数点 (寄存器0: buf[3], buf[4])
+                uint8_t unit_type = (d->rx_temp_buf[3] >> 4) & 0x0F; // Bit 12-15
+                uint8_t dot_info = d->rx_temp_buf[3] & 0x0F;        // Bit 8-11
+                
+                // 2. 解析浓度值 (寄存器1: buf[5], buf[6] -> 注意：Modbus高位在前)
+                // 原代码索引可能有误，根据手册：Addr(0), Func(1), Len(2), Reg0_H(3), Reg0_L(4), Reg1_H(5), Reg1_L(6)
                 uint16_t raw_conc = (d->rx_temp_buf[5] << 8) | d->rx_temp_buf[6];
-                if (decimal_pos == 4) d->concentration = raw_conc / 10.0f;
-                else if (decimal_pos == 8) d->concentration = raw_conc / 100.0f;
+                
+                // 3. 根据小数点位数缩放 (0100=1位, 1000=2位)
+                if (dot_info == 0x04) d->concentration = raw_conc / 10.0f;
+                else if (dot_info == 0x08) d->concentration = raw_conc / 100.0f;
                 else d->concentration = (float)raw_conc;
 
-                d->full_range = (d->rx_temp_buf[11] << 8) | d->rx_temp_buf[12];
-                d->state = d->rx_temp_buf[14];
-                d->temperature = ((int16_t)((d->rx_temp_buf[17] << 8) | d->rx_temp_buf[18])) / 10.0f;
-                d->humidity = ((d->rx_temp_buf[21] << 8) | d->rx_temp_buf[22]) / 10.0f;
+                // 4. 解析其他参数 (依据手册寄存器映射顺序类推)
+                d->temperature = ((int16_t)((d->rx_temp_buf[17] << 8) | d->rx_temp_buf[18])) / 10.0f; // 寄存器7
+                d->humidity = ((d->rx_temp_buf[21] << 8) | d->rx_temp_buf[22]) / 10.0f;    // 寄存器9
 
                 d->status = SENSOR_COMPLETE;
             } else {
-                d->status = SENSOR_ERROR;
+                d->status = SENSOR_ERROR; // 可能是地址不对或字节长度没对齐
             }
         }
     }
-
 }
 // 调度器：放在 main 循环中
 void GasSensor_Scheduler(void) {
