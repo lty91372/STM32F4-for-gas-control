@@ -7,7 +7,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2025 STMicroelectronics.
+  * Copyright (c) 2026 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -57,32 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LED1_Pin GPIO_PIN_6
-#define LED1_GPIO_Port GPIOA
-#define LED2_Pin GPIO_PIN_7
-#define LED2_GPIO_Port GPIOA
-#define keyboard_Pin GPIO_PIN_15
-#define keyboard_GPIO_Port GPIOB
-#define keyboardD9_Pin GPIO_PIN_9
-#define keyboardD9_GPIO_Port GPIOD
-#define keyboardD11_Pin GPIO_PIN_11
-#define keyboardD11_GPIO_Port GPIOD
-#define keyboardD13_Pin GPIO_PIN_13
-#define keyboardD13_GPIO_Port GPIOD
-#define keyboardx_Pin GPIO_PIN_15
-#define keyboardx_GPIO_Port GPIOD
-#define PWM_Pin GPIO_PIN_6
-#define PWM_GPIO_Port GPIOC
-#define keyboardxC7_Pin GPIO_PIN_7
-#define keyboardxC7_GPIO_Port GPIOC
-#define keyboaedx_Pin GPIO_PIN_9
-#define keyboaedx_GPIO_Port GPIOC
-#define keyboardxA9_Pin GPIO_PIN_9
-#define keyboardxA9_GPIO_Port GPIOA
-#define LED_Pin GPIO_PIN_1
-#define LED_GPIO_Port GPIOD
-#define key_touch_Pin GPIO_PIN_1
-#define key_touch_GPIO_Port GPIOE
+#define LCD_BL_Pin GPIO_PIN_15
+#define LCD_BL_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

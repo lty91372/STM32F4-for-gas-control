@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2025 STMicroelectronics.
+  * Copyright (c) 2026 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -18,20 +18,36 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "adc.h"
 #include "dma.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
+#include "fsmc.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdio.h"
-#include "gas_control.h"
+#include "sys.h"
+#include "delay.h"
+#include "led.h"
+#include "key.h"
+#include "lcd.h"
+#include "touch.h"
+
 #include "motor.h"
+#include "gas_sensor.h"
+#include "PID_control.h"
 #include "uart_transmit_moudle.h"
-#include <string.h>
-#include <stdio.h>
+#include "gas_control.h"
+//#include "usart.h"
+
+#include "lvgl.h"
+#include "lv_port_indev.h"
+#include "lv_port_disp.h"
+
+#include "gui_guider.h"
+#include "events_init.h"
+
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,10 +57,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
-
-#define TIM_MODE 0
-#define MOTOR_DEBUG 1
+#define LVGL_INITIALIZE 1
+#define LVGL_BUTTON_DEBUG 1
+#define TIME_MODE 1
+#define BUTTON_SM 1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -55,7 +71,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-char debug_buf[256];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -66,71 +82,32 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-//ADC回调函数，在一轮转换完成之后触发
+lv_ui guider_ui;		// GUI Guider生成的全局变量
 
-
-#if TIM_MODE
-//定时器回调函数
+#if TIME_MODE
+/*
+ * 算法更新放在硬件定时器中，初步设定更新时间为200ms
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	if(htim->Instance == TIM2)
-	{
-		N_Filter();
-	}
 	if(htim->Instance == TIM14)
 	{
-		static uint32_t tasktick = 0;
-		tasktick++;
-		if(tasktick % 5 == 0 && tasktick > 0)
+
+
+		static uint32_t time_inc = 0;
+		time_inc++;
+		if(time_inc % 50 == 0)
 		{
-			Key_State_Detect();
-			Keyboard_State_Detect();
+#if BUTTON_SM
+			Gas_Channel_Control_State_Machine();
+#endif
+			Air_Motor_Control();
 		}
-		if(tasktick % 20 == 1)
+		if(time_inc % 200 == 0)
 		{
-			UART_STATE_MACHINE();
-		}
-		if(tasktick % 200 == 2)
-		{
+//			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_8);
 			Gas_Channel_Control_Update();
 		}
-		if(tasktick >= 2000)
-			tasktick = 0;
-	}
-}
-#endif
-
-#if MOTOR_DEBUG
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-	if(htim->Instance == TIM14)
-	{
-
-
-	  static uint32_t motor_debug_inc = 0;
-	  motor_debug_inc++;
-	  if(motor_debug_inc > 1000)
-	  {
-
-
-		  if(Get_Motor_State(0) == MOTOR_STATE_STOPPED)
-		  {
-			  Motor_Enable(0);
-			  Motor1_PWM_Control(2000);
-			  Motor2_PWM_Control(0);
-		  }
-		  else if(Get_Motor_State(0) == MOTOR_STATE_RUNNING)
-		  {
-			  Motor_Disable(0);
-			  Motor1_PWM_Control(0);
-			  Motor2_PWM_Control(2000);
-		  }
-		  motor_debug_inc = 0;
-
-
-		  sprintf(debug_buf,"uart14_Interrupt\n");
-		  Uart_Write_Buff((uint8_t*)debug_buf,strlen(debug_buf));
-	  }
 
 	}
 }
@@ -146,7 +123,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-//  GasSensor_Data_t my_o2_data[3]; // 定义三路传感器数据结构体数组
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -168,44 +145,118 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_UART4_Init();
-  MX_TIM3_Init();
-  MX_ADC1_Init();
+  MX_FSMC_Init();
   MX_TIM2_Init();
+  MX_TIM3_Init();
+  MX_TIM4_Init();
   MX_TIM14_Init();
-  MX_TIM13_Init();
-  MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
-  MX_TIM4_Init();
+  MX_UART4_Init();
+  MX_USART1_UART_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
-//  HAL_TIM_Base_Start_IT(&htim2);
-  HAL_TIM_Base_Start_IT(&htim14);
-  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_1);
-
+  delay_init();
+  LED_Init();
+  tp_dev.init();
+  KEY_Init();
+/*
+ * 核心功能初始化
+ */
   Motor_Init();
   GasSensor_Init();
   Gas_Channel_Control_Init();
 
+#if LVGL_INITIALIZE
+  //lvgl屏幕初始化
+  lv_init();                          /* lvgl系统初始化 */
+  lv_port_disp_init();                /* lvgl显示接口初始化 */
+  lv_port_indev_init();
 
-  Motor1_PWM_Control(0);
-  sprintf(debug_buf,"Motor 0 Set 0\n");
-  Uart_Write_Buff((uint8_t*)debug_buf,strlen(debug_buf));
+  POINT_COLOR=RED;
+  LCD_ShowString(30,50,200,16,16,"Explorer STM32F407");
+  LCD_ShowString(30,70,200,16,16,"TOUCH TEST");
+  POINT_COLOR=BROWN;
+  LCD_ShowString(30,90,200,16,16,"Create@DA_NIU_BI");
+  POINT_COLOR=0XFC07;
+  LCD_ShowString(30,110,200,16,16,"2026/2/22");
+
+
+  if(tp_dev.touchtype!=0XFF)
+  {
+  	LCD_ShowString(30,130,200,16,16,"Press KEY0 to Adjust");//µç×èÆÁ²ÅÏÔÊ¾
+  }
+  delay_ms(1000);
+
+  setup_ui(&guider_ui);
+  events_init(&guider_ui);
+#endif
+
+/*
+ * 中断与pwm配置
+ */
+  HAL_TIM_Base_Start_IT(&htim14);
+  HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim5,TIM_CHANNEL_1);
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+
+
+while(1)
+{
+#if LVGL_BUTTON_DEBUG
+	  tp_dev.scan(0);
+	  lv_timer_handler();
+
+
+	  if (input_updated[0]) {
+		  LED0=0; delay_ms(100); LED0=1;
+		  input_updated[0] = false;   // 清除标志
+	  }
+	  if (input_updated[1]) {
+		  LED1=0; delay_ms(100); LED1=1;
+		  input_updated[1] = false;   // 清除标志
+	  }
+	  if (input_updated[2]) {
+		  LED0=LED1=0; delay_ms(100); LED0=LED1=1;
+		  input_updated[2] = false;   // 清除标志
+	  }
+
+
+	  if (switch_updated[0]) {
+		  if (g_switch_states[0]) {
+			  LED0=0;
+		  }
+		  else	LED0=1;
+		  switch_updated[0] = false;
+	  }
+	  if (switch_updated[1]) {
+		  if (g_switch_states[1]) {
+			  LED1=0;
+		  }
+		  else	LED1=1;
+		  switch_updated[1] = false;
+	  }
+	  if (switch_updated[2]) {
+		  if (g_switch_states[2]) {
+			  LED0=LED1=0;
+		  }
+		  else	LED0=LED1=1;
+		  switch_updated[2] = false;
+	  }
+#endif
+		  GasSensor_Scheduler();
+}
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  GasSensor_Scheduler();
 
-
-  }
   /* USER CODE END 3 */
 }
 
